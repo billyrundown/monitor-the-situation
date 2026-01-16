@@ -11,6 +11,8 @@ const appState = {
   stateActivity: {},
 };
 
+window.appState = appState;
+
 async function initApp() {
   try {
     const data = await window.loadDashboardData?.();
