@@ -1,0 +1,14 @@
+{
+  "groups": [
+    {
+      "id": "east-coast",
+      "name": "East Coast",
+      "states": ["ME", "NH", "VT", "MA", "RI", "CT", "NY", "NJ", "PA", "DE", "MD", "VA", "NC", "SC", "GA", "FL"]
+    },
+    {
+      "id": "swing-states",
+      "name": "Swing States",
+      "states": ["PA", "MI", "WI", "AZ", "GA", "NV", "NC"]
+    }
+  ]
+}

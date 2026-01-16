@@ -1,0 +1,7 @@
+{
+  "keywords": [
+    { "id": "k1", "word": "breaking", "priority": "high" },
+    { "id": "k2", "word": "NVIDIA", "priority": "high" },
+    { "id": "k3", "word": "Fed", "priority": "medium" }
+  ]
+}

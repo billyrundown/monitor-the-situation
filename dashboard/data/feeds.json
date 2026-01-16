@@ -1,0 +1,16 @@
+{
+  "feeds": [
+    {
+      "id": "tx-statesman",
+      "url": "https://www.statesman.com/rss",
+      "state": "TX",
+      "name": "Austin American-Statesman"
+    },
+    {
+      "id": "ca-latimes",
+      "url": "https://www.latimes.com/rss",
+      "state": "CA",
+      "name": "LA Times"
+    }
+  ]
+}

@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>US News Monitoring Dashboard</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="app crt-overlay" id="app">
+      <header class="top-bar">
+        <div class="brand">
+          <span class="brand-title glow-text">US NEWS MONITOR</span>
+          <span class="brand-sub">RSS Situation Room</span>
+        </div>
+        <div class="top-actions">
+          <button class="icon-button" id="toggle-groups" aria-label="Toggle groups">G</button>
+          <button class="icon-button" id="toggle-settings" aria-label="Toggle settings">S</button>
+        </div>
+      </header>
+
+      <aside class="groups-panel" id="groups-panel" aria-hidden="true">
+        <div class="panel-header">
+          <span>GROUPS</span>
+          <button class="icon-button" id="add-group" aria-label="Add group">+</button>
+        </div>
+        <ul class="group-list" id="group-list">
+          <li class="group-item">East Coast</li>
+          <li class="group-item">West Coast</li>
+          <li class="group-item">Swing States</li>
+        </ul>
+        <button class="text-button" id="new-group">+ New Group</button>
+      </aside>
+
+      <main class="stage">
+        <canvas id="map-canvas" width="1200" height="800"></canvas>
+        <div class="state-overlay" id="state-overlay" aria-hidden="true">
+          <div class="state-header">
+            <button class="text-button" id="state-back">&larr; Back</button>
+            <span class="state-title">STATE NAME</span>
+            <button class="icon-button" id="state-settings" aria-label="State settings">&#9881;</button>
+          </div>
+          <div class="state-body">
+            <div class="state-tickers">
+              <div class="state-ticker-card">
+                <div class="card-title">Feed Ticker</div>
+                <div class="mini-ticker"></div>
+              </div>
+            </div>
+            <div class="state-stories">
+              <div class="card-title">Recent Stories</div>
+              <ul class="story-list">
+                <li>Headline one... <span>2m ago</span></li>
+                <li>Headline two... <span>15m ago</span></li>
+                <li>Headline three... <span>1h ago</span></li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </main>
+
+      <div class="ticker-container" id="main-ticker">
+        <div class="ticker-track">
+          <span class="ticker-item">
+            <span class="ticker-state">TX</span>
+            <span class="ticker-source">Statesman</span>
+            <span class="ticker-headline">Headline placeholder for the scrolling ticker</span>
+            <span class="ticker-time">5m</span>
+          </span>
+        </div>
+      </div>
+
+      <aside class="settings-panel" id="settings-panel" aria-hidden="true">
+        <div class="panel-header">
+          <span>SETTINGS</span>
+          <button class="icon-button" id="close-settings" aria-label="Close settings">X</button>
+        </div>
+        <div class="panel-tabs">
+          <button class="tab-button is-active" data-tab="feeds">Feeds</button>
+          <button class="tab-button" data-tab="groups">Groups</button>
+          <button class="tab-button" data-tab="keywords">Keywords</button>
+          <button class="tab-button" data-tab="display">Display</button>
+        </div>
+        <div class="panel-content">
+          <section class="tab-panel is-active" id="tab-feeds">
+            <div class="panel-toolbar">
+              <input type="text" placeholder="Search feeds" />
+              <button class="text-button">+ Add Feed</button>
+            </div>
+            <div class="list-panel">
+              <div class="list-item">
+                <div>
+                  <div class="item-title">LA Times</div>
+                  <div class="item-sub">https://latimes.com/rss</div>
+                </div>
+                <div class="item-tags">CA</div>
+              </div>
+            </div>
+          </section>
+          <section class="tab-panel" id="tab-groups">
+            <div class="list-panel">Group editor placeholder</div>
+          </section>
+          <section class="tab-panel" id="tab-keywords">
+            <div class="list-panel">Keyword editor placeholder</div>
+          </section>
+          <section class="tab-panel" id="tab-display">
+            <div class="list-panel">Display settings placeholder</div>
+          </section>
+        </div>
+      </aside>
+
+      <div class="defcon-toast" id="defcon-toast" aria-hidden="true">
+        <strong>DEFCON:</strong> "NVIDIA" matched
+      </div>
+    </div>
+
+    <script src="js/app.js"></script>
+    <script src="js/canvas.js"></script>
+    <script src="js/feeds.js"></script>
+    <script src="js/ticker.js"></script>
+    <script src="js/ui.js"></script>
+  </body>
+</html>
