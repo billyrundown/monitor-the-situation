@@ -3,6 +3,7 @@ const ctx = canvas ? canvas.getContext("2d") : null;
 const statePaths = [];
 const selectedStates = new Set();
 let canvasSize = { width: 0, height: 0 };
+let mapAnimationFrame = null;
 const STATE_ABBR = {
   Alabama: "AL",
   Alaska: "AK",
@@ -123,35 +124,93 @@ function createProjector(bounds, padding) {
   };
 }
 
+function projectToInset(bounds, inset) {
+  const lonSpan = bounds.maxLon - bounds.minLon || 1;
+  const latSpan = bounds.maxLat - bounds.minLat || 1;
+  const scale = Math.min(inset.width / lonSpan, inset.height / latSpan);
+  const offsetX = inset.x + (inset.width - lonSpan * scale) / 2;
+  const offsetY = inset.y + (inset.height - latSpan * scale) / 2;
+
+  return ([lon, lat]) => {
+    const x = (lon - bounds.minLon) * scale + offsetX;
+    const y = (bounds.maxLat - lat) * scale + offsetY;
+    return [x, y];
+  };
+}
+
+function buildPathForFeature(feature, project) {
+  const path = new Path2D();
+  const { geometry } = feature;
+  const drawRing = (ring) => {
+    ring.forEach(([lon, lat], index) => {
+      const [x, y] = project([lon, lat]);
+      if (index === 0) {
+        path.moveTo(x, y);
+      } else {
+        path.lineTo(x, y);
+      }
+    });
+    path.closePath();
+  };
+
+  if (geometry.type === "Polygon") {
+    geometry.coordinates.forEach(drawRing);
+  } else if (geometry.type === "MultiPolygon") {
+    geometry.coordinates.forEach((poly) => poly.forEach(drawRing));
+  }
+
+  return path;
+}
+
 function buildPaths(features) {
   statePaths.length = 0;
-  const bounds = computeBounds(features);
+  const alaskaFeature = features.find((feature) => feature.properties?.name === "Alaska");
+  const hawaiiFeature = features.find((feature) => feature.properties?.name === "Hawaii");
+  const lower48 = features.filter(
+    (feature) =>
+      feature.properties?.name !== "Alaska" && feature.properties?.name !== "Hawaii"
+  );
+
+  const bounds = computeBounds(lower48);
   if (!bounds) return false;
 
-  const project = createProjector(bounds, 20);
-  features.forEach((feature) => {
-    const path = new Path2D();
-    const { geometry, properties } = feature;
-    const drawRing = (ring) => {
-      ring.forEach(([lon, lat], index) => {
-        const [x, y] = project([lon, lat]);
-        if (index === 0) {
-          path.moveTo(x, y);
-        } else {
-          path.lineTo(x, y);
-        }
-      });
-      path.closePath();
-    };
+  const project = createProjector(bounds, 30);
+  const alaskaBounds = alaskaFeature ? computeBounds([alaskaFeature]) : null;
+  const hawaiiBounds = hawaiiFeature ? computeBounds([hawaiiFeature]) : null;
 
-    if (geometry.type === "Polygon") {
-      geometry.coordinates.forEach(drawRing);
-    } else if (geometry.type === "MultiPolygon") {
-      geometry.coordinates.forEach((poly) => poly.forEach(drawRing));
+  const insetPadding = 24;
+  const insetWidth = Math.max(120, canvasSize.width * 0.18);
+  const insetHeight = Math.max(90, canvasSize.height * 0.18);
+  const alaskaInset = {
+    x: insetPadding,
+    y: canvasSize.height - insetHeight - insetPadding,
+    width: insetWidth,
+    height: insetHeight,
+  };
+  const hawaiiInset = {
+    x: alaskaInset.x + insetWidth + 12,
+    y: alaskaInset.y + insetHeight * 0.25,
+    width: insetWidth * 0.6,
+    height: insetHeight * 0.6,
+  };
+
+  const alaskaProject =
+    alaskaFeature && alaskaBounds ? projectToInset(alaskaBounds, alaskaInset) : null;
+  const hawaiiProject =
+    hawaiiFeature && hawaiiBounds ? projectToInset(hawaiiBounds, hawaiiInset) : null;
+
+  features.forEach((feature) => {
+    const name = feature.properties?.name || "State";
+    let featureProject = project;
+    if (name === "Alaska" && alaskaProject) {
+      featureProject = alaskaProject;
+    }
+    if (name === "Hawaii" && hawaiiProject) {
+      featureProject = hawaiiProject;
     }
 
-    const name = properties?.name || "State";
-    const abbr = properties?.abbr || properties?.id || STATE_ABBR[name];
+    const path = buildPathForFeature(feature, featureProject);
+    const abbr = feature.properties?.abbr || feature.properties?.id || STATE_ABBR[name];
     statePaths.push({
       id: abbr || name,
       name,
@@ -168,28 +227,38 @@ function syncSelection() {
   }
 }
 
-function drawMap() {
+function drawMap(timestamp = 0) {
   if (!ctx) return;
   ctx.clearRect(0, 0, canvasSize.width, canvasSize.height);
   ctx.fillStyle = "rgba(5, 5, 5, 0.7)";
   ctx.fillRect(0, 0, canvasSize.width, canvasSize.height);
 
+  const pulse = 0.5 + 0.5 * Math.sin(timestamp / 700);
   ctx.strokeStyle = "#2a2a2a";
   ctx.lineWidth = 1;
   statePaths.forEach((state) => {
     const isSelected = selectedStates.has(state.id);
     if (isSelected) {
-      ctx.fillStyle = "rgba(0, 255, 65, 0.2)";
+      const fillAlpha = 0.1 + 0.08 * pulse;
+      ctx.fillStyle = `rgba(82, 255, 143, ${fillAlpha})`;
+      ctx.save();
+      ctx.shadowColor = "rgba(82, 255, 143, 0.55)";
+      ctx.shadowBlur = 14 + 10 * pulse;
       ctx.fill(state.path);
-      ctx.strokeStyle = "#ffffff";
-      ctx.lineWidth = 2;
-      ctx.stroke(state.path);
-      ctx.strokeStyle = "#2a2a2a";
-      ctx.lineWidth = 1;
-    } else {
+      ctx.restore();
+      ctx.strokeStyle = "rgba(248, 255, 249, 0.9)";
+      ctx.lineWidth = 1.6 + 1.2 * pulse;
       ctx.stroke(state.path);
     }
+    ctx.strokeStyle = "#2a2a2a";
+    ctx.lineWidth = 1;
+    ctx.stroke(state.path);
   });
+}
+
+function animateMap(timestamp) {
+  drawMap(timestamp);
+  mapAnimationFrame = requestAnimationFrame(animateMap);
 }
 
 function handleCanvasClick(event) {
@@ -237,7 +306,8 @@ async function initCanvasMap() {
       return;
     }
     canvas.addEventListener("click", handleCanvasClick);
-    drawMap();
+    if (mapAnimationFrame) cancelAnimationFrame(mapAnimationFrame);
+    mapAnimationFrame = requestAnimationFrame(animateMap);
   } catch (error) {
     console.error("Failed to load map data", error);
     drawPlaceholderMap("Map load failed");
