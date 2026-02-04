@@ -122,6 +122,11 @@ body {
   cursor: pointer;
 }
 
+.group-item.is-active {
+  color: var(--white);
+  text-shadow: 0 0 6px currentColor;
+}
+
 .stage {
   position: relative;
   padding: 20px 20px 80px 240px;

@@ -15,9 +15,25 @@ function formatTimeAgo(dateString) {
   return `${hours}h`;
 }
 
+function getActiveStates() {
+  const appState = window.appState;
+  if (!appState) return [];
+  if (appState.activeGroup) {
+    const group = (appState.groups || []).find((entry) => entry.id === appState.activeGroup);
+    return group?.states || [];
+  }
+  return appState.selectedStates || [];
+}
+
 function getTickerStories() {
   const stories = window.appState?.stories || [];
-  if (stories.length) return stories;
+  if (stories.length) {
+    const activeStates = getActiveStates();
+    if (activeStates.length) {
+      return stories.filter((story) => activeStates.includes(story.state));
+    }
+    return stories;
+  }
   return [
     {
       id: "placeholder-1",
@@ -34,6 +50,12 @@ function renderTickerItems() {
   if (!tickerTrack) return;
   tickerTrack.innerHTML = "";
   const stories = getTickerStories();
+  if (!stories.length) {
+    tickerTrack.innerHTML =
+      "<span class=\"ticker-item\">No stories yet. Add feeds or wait for refresh.</span>";
+    tickerLoopWidth = tickerTrack.scrollWidth || 1;
+    return;
+  }
   const fragment = document.createDocumentFragment();
   stories.forEach((story) => {
     const item = document.createElement("span");
@@ -87,7 +109,14 @@ function initTicker() {
   window.addEventListener("resize", () => {
     renderTickerItems();
   });
+  document.addEventListener("dashboard:selection", () => {
+    renderTickerItems();
+  });
+  document.addEventListener("dashboard:data-ready", () => {
+    renderTickerItems();
+  });
   requestAnimationFrame(stepTicker);
 }
 
 document.addEventListener("DOMContentLoaded", initTicker);
+window.refreshTickerItems = renderTickerItems;

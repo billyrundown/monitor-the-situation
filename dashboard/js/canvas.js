@@ -166,6 +166,11 @@ function syncSelection() {
   if (window.appState?.selectedStates) {
     window.appState.selectedStates = Array.from(selectedStates);
   }
+  document.dispatchEvent(
+    new CustomEvent("dashboard:selection", {
+      detail: { selectedStates: window.appState?.selectedStates || [] },
+    })
+  );
 }
 
 function drawMap() {
@@ -200,6 +205,9 @@ function handleCanvasClick(event) {
   const hit = statePaths.find((state) => ctx.isPointInPath(state.path, x, y));
 
   if (hit) {
+    if (window.appState?.activeGroup) {
+      window.appState.activeGroup = null;
+    }
     if (!event.shiftKey) {
       selectedStates.clear();
     }
@@ -212,6 +220,33 @@ function handleCanvasClick(event) {
     selectedStates.clear();
   }
 
+  syncSelection();
+  drawMap();
+}
+
+function handleCanvasDoubleClick(event) {
+  if (!ctx || statePaths.length === 0) return;
+  const rect = canvas.getBoundingClientRect();
+  const x = event.clientX - rect.left;
+  const y = event.clientY - rect.top;
+  const hit = statePaths.find((state) => ctx.isPointInPath(state.path, x, y));
+  if (!hit) return;
+  if (window.appState) {
+    window.appState.zoomedState = hit.id;
+    window.appState.view = "state";
+  }
+  document.dispatchEvent(
+    new CustomEvent("dashboard:zoom", {
+      detail: { stateId: hit.id, stateName: hit.name },
+    })
+  );
+}
+
+function setSelectedStates(nextStates) {
+  selectedStates.clear();
+  if (Array.isArray(nextStates)) {
+    nextStates.forEach((state) => selectedStates.add(state));
+  }
   syncSelection();
   drawMap();
 }
@@ -237,6 +272,7 @@ async function initCanvasMap() {
       return;
     }
     canvas.addEventListener("click", handleCanvasClick);
+    canvas.addEventListener("dblclick", handleCanvasDoubleClick);
     drawMap();
   } catch (error) {
     console.error("Failed to load map data", error);
@@ -245,3 +281,4 @@ async function initCanvasMap() {
 }
 
 document.addEventListener("DOMContentLoaded", initCanvasMap);
+window.setSelectedStates = setSelectedStates;
