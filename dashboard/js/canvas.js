@@ -3,6 +3,20 @@ const ctx = canvas ? canvas.getContext("2d") : null;
 const statePaths = [];
 const selectedStates = new Set();
 let canvasSize = { width: 0, height: 0 };
+let mapAnimationFrame = null;
+let mapFeatures = null;
+let canvasResizeObserver = null;
+let resizeObserverFrame = null;
+const DEBUG_HITTEST = new URLSearchParams(window.location.search).has("debug");
+let debugOverlay = null;
+let debugInfo = null;
+let lastActivityStamp = 0;
+let cachedActivity = {};
+const THEME_COLORS = {
+  green: "#00ff41",
+  amber: "#ffb000",
+  cyan: "#00ffff",
+};
 const STATE_ABBR = {
   Alabama: "AL",
   Alaska: "AK",
@@ -123,6 +137,67 @@ function createProjector(bounds, padding) {
   };
 }
 
+function hexToRgb(hex) {
+  const cleaned = hex.replace("#", "");
+  if (cleaned.length !== 6) return { r: 0, g: 255, b: 65 };
+  const int = parseInt(cleaned, 16);
+  return {
+    r: (int >> 16) & 255,
+    g: (int >> 8) & 255,
+    b: int & 255,
+  };
+}
+
+function computeStateActivity() {
+  const appState = window.appState;
+  if (!appState) return {};
+  const now = Date.now();
+  if (now - lastActivityStamp < 1500 && Object.keys(cachedActivity).length) {
+    return cachedActivity;
+  }
+
+  const decay = appState.settings?.heatmapDecay ?? 3600000;
+  const feeds = appState.feeds || [];
+  const stories = appState.stories || [];
+  const feedCounts = feeds.reduce((acc, feed) => {
+    if (!feed.state) return acc;
+    acc[feed.state] = (acc[feed.state] || 0) + 1;
+    return acc;
+  }, {});
+
+  const activity = {};
+  stories.forEach((story) => {
+    const state = story.state;
+    if (!state) return;
+    const storyTime = new Date(story.pubDate || now).getTime() || now;
+    const age = now - storyTime;
+    if (age >= decay) return;
+    const weight = 1 - age / decay;
+    if (!activity[state]) {
+      activity[state] = {
+        storyCount: 0,
+        feedCount: feedCounts[state] || 0,
+        normalizedHeat: 0,
+        lastStoryTime: 0,
+        weightedScore: 0,
+      };
+    }
+    activity[state].storyCount += 1;
+    activity[state].weightedScore += weight;
+    activity[state].lastStoryTime = Math.max(activity[state].lastStoryTime, storyTime);
+  });
+
+  Object.keys(activity).forEach((state) => {
+    const feedCount = activity[state].feedCount || 1;
+    activity[state].normalizedHeat = Math.min(activity[state].weightedScore / feedCount, 1);
+  });
+
+  appState.stateActivity = activity;
+  cachedActivity = activity;
+  lastActivityStamp = now;
+  return activity;
+}
+
 function buildPaths(features) {
   statePaths.length = 0;
   const bounds = computeBounds(features);
@@ -132,9 +207,15 @@ function buildPaths(features) {
   features.forEach((feature) => {
     const path = new Path2D();
     const { geometry, properties } = feature;
+    let sumX = 0;
+    let sumY = 0;
+    let pointCount = 0;
     const drawRing = (ring) => {
       ring.forEach(([lon, lat], index) => {
         const [x, y] = project([lon, lat]);
+        sumX += x;
+        sumY += y;
+        pointCount += 1;
         if (index === 0) {
           path.moveTo(x, y);
         } else {
@@ -156,6 +237,10 @@ function buildPaths(features) {
       id: abbr || name,
       name,
       path,
+      centroid:
+        pointCount > 0
+          ? { x: sumX / pointCount, y: sumY / pointCount }
+          : null,
     });
   });
 
@@ -168,28 +253,78 @@ function syncSelection() {
   }
 }
 
-function drawMap() {
+function drawMap(timestamp = 0) {
   if (!ctx) return;
+  const appState = window.appState;
+  const theme = appState?.settings?.theme || "green";
+  const baseColor = THEME_COLORS[theme] || THEME_COLORS.green;
+  const { r, g, b } = hexToRgb(baseColor);
+  const activity = computeStateActivity();
+  const decay = appState?.settings?.heatmapDecay ?? 3600000;
+  const now = Date.now();
+  const pulse = 0.5 + 0.5 * Math.sin(timestamp / 700);
+
   ctx.clearRect(0, 0, canvasSize.width, canvasSize.height);
   ctx.fillStyle = "rgba(5, 5, 5, 0.7)";
   ctx.fillRect(0, 0, canvasSize.width, canvasSize.height);
 
+  statePaths.forEach((state) => {
+    const heat = activity[state.id]?.normalizedHeat || 0;
+    if (heat > 0) {
+      const alpha = 0.08 + heat * 0.6;
+      ctx.save();
+      ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
+      ctx.shadowColor = `rgba(${r}, ${g}, ${b}, ${0.35 + heat * 0.5})`;
+      ctx.shadowBlur = 10 + heat * 18 + 6 * pulse;
+      ctx.fill(state.path);
+      ctx.restore();
+    }
+  });
+
   ctx.strokeStyle = "#2a2a2a";
   ctx.lineWidth = 1;
   statePaths.forEach((state) => {
+    ctx.stroke(state.path);
+  });
+
+  statePaths.forEach((state) => {
     const isSelected = selectedStates.has(state.id);
     if (isSelected) {
-      ctx.fillStyle = "rgba(0, 255, 65, 0.2)";
+      ctx.save();
+      ctx.fillStyle = "rgba(82, 255, 143, 0.18)";
+      ctx.shadowColor = "rgba(82, 255, 143, 0.6)";
+      ctx.shadowBlur = 16 + 8 * pulse;
       ctx.fill(state.path);
+      ctx.restore();
       ctx.strokeStyle = "#ffffff";
       ctx.lineWidth = 2;
       ctx.stroke(state.path);
       ctx.strokeStyle = "#2a2a2a";
       ctx.lineWidth = 1;
-    } else {
-      ctx.stroke(state.path);
     }
   });
+
+  statePaths.forEach((state) => {
+    const info = activity[state.id];
+    if (!info?.lastStoryTime || !state.centroid) return;
+    const age = now - info.lastStoryTime;
+    if (age >= decay) return;
+    const strength = 1 - age / decay;
+    const radius = 2 + 5 * strength + 1.5 * pulse;
+    ctx.save();
+    ctx.beginPath();
+    ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${0.3 + strength * 0.6})`;
+    ctx.shadowColor = `rgba(${r}, ${g}, ${b}, ${0.4 + strength * 0.4})`;
+    ctx.shadowBlur = 8 + 10 * strength;
+    ctx.arc(state.centroid.x, state.centroid.y, radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  });
+}
+
+function animateMap(timestamp) {
+  drawMap(timestamp);
+  mapAnimationFrame = requestAnimationFrame(animateMap);
 }
 
 function handleCanvasClick(event) {
@@ -221,6 +356,9 @@ async function initCanvasMap() {
   resizeCanvas();
   window.addEventListener("resize", () => {
     resizeCanvas();
+    if (mapFeatures?.length) {
+      buildPaths(mapFeatures);
+    }
     drawMap();
   });
 
@@ -231,13 +369,15 @@ async function initCanvasMap() {
       drawPlaceholderMap("Map data missing (assets/us-states.json)");
       return;
     }
-    const built = buildPaths(data.features);
+    mapFeatures = data.features;
+    const built = buildPaths(mapFeatures);
     if (!built) {
       drawPlaceholderMap("Map data invalid");
       return;
     }
     canvas.addEventListener("click", handleCanvasClick);
-    drawMap();
+    if (mapAnimationFrame) cancelAnimationFrame(mapAnimationFrame);
+    mapAnimationFrame = requestAnimationFrame(animateMap);
   } catch (error) {
     console.error("Failed to load map data", error);
     drawPlaceholderMap("Map load failed");
