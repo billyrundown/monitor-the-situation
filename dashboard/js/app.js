@@ -22,6 +22,7 @@ async function initApp() {
       appState.keywords = data.keywords;
       appState.settings = data.settings;
     }
+    window.startFeedRefresh?.(appState);
     console.log("Dashboard shell loaded", appState);
   } catch (error) {
     console.error("Failed to initialize dashboard data", error);
