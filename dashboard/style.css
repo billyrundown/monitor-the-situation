@@ -294,6 +294,25 @@ body {
   overflow: hidden;
 }
 
+.ticker-container--animated .ticker-marquee {
+  display: flex;
+  gap: 24px;
+  overflow: hidden;
+  position: relative;
+  mask-image: linear-gradient(90deg, transparent 0%, #000 8%, #000 92%, transparent 100%);
+}
+
+.ticker-container--animated .ticker-track {
+  display: flex;
+  gap: 24px;
+  width: max-content;
+  animation: ticker-scroll 40s linear infinite;
+}
+
+.ticker-container--animated .ticker-track[aria-hidden="true"] {
+  animation-delay: -20s;
+}
+
 .ticker-track {
   display: flex;
   gap: 24px;
@@ -331,6 +350,15 @@ body {
   transform: translateX(-60%);
   animation: tickerSheen 6s linear infinite;
   pointer-events: none;
+}
+
+@keyframes ticker-scroll {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
 }
 
 .settings-panel {

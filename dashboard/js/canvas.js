@@ -4,6 +4,7 @@ const statePaths = [];
 const selectedStates = new Set();
 let canvasSize = { width: 0, height: 0 };
 let mapAnimationFrame = null;
+let mapFeatures = null;
 const STATE_ABBR = {
   Alabama: "AL",
   Alaska: "AK",
@@ -290,6 +291,9 @@ async function initCanvasMap() {
   resizeCanvas();
   window.addEventListener("resize", () => {
     resizeCanvas();
+    if (mapFeatures?.length) {
+      buildPaths(mapFeatures);
+    }
     drawMap();
   });
 
@@ -300,7 +304,8 @@ async function initCanvasMap() {
       drawPlaceholderMap("Map data missing (assets/us-states.json)");
       return;
     }
-    const built = buildPaths(data.features);
+    mapFeatures = data.features;
+    const built = buildPaths(mapFeatures);
     if (!built) {
       drawPlaceholderMap("Map data invalid");
       return;
